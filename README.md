@@ -1,0 +1,3 @@
+# hashpasssword
+hashpassword in local and the value stored in databse as hash for authentication.
+#signin and login api creation........
