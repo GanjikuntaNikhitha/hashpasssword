@@ -1,80 +1,99 @@
 const express = require('express')
 const User = require('../models/user')
 const router = new express.Router()
+const bcrypt = require('bcrypt')
+router.post('/signup', async (req, res) => {
 
-router.post('/users', async (req, res) => {
-    const user = new User(req.body)
+    User.find({ email: req.body.email })
+        .then(user => {
+            // the user wont checks in the databse it gives every time as user already exits by default it is null
+            if (user.length == 1) {
+                return res.status(200).json({
+                    message: "mail already exists"
+                })
+            } else {
+                bcrypt.hash(req.body.password, 10, (err, hash) => {
+                    if (err) {
+                        return res.status(500).json({
+                            error: err
+                        })
+                    }
+                    else {
+                        const user = new User({
 
-    try {
-        await user.save()
-        res.status(201).send(user)
-    } catch (e) {
-        res.status(400).send(e)
-    }
+                            email: req.body.email,
+                            password: hash
+
+                        })
+                        user.save().then(result => {
+                            console.log(result)
+                            res.status(201).json({
+                                message: "User created"
+                            })
+                        }).catch(err => {
+                            console.log(err)
+                        })
+                    }
+                })
+            }
+        })
+
+
 })
 
-router.get('/users', async (req, res) => {
-    try {
-        const users = await User.find({})
-        res.send(users)
-    } catch (e) {
-        res.status(500).send()
-    }
-})
 
-router.get('/users/:id', async (req, res) => {
-    const _id = req.params.id
-
-    try {
-        const user = await User.findById(_id)
-
-        if (!user) {
-            return res.status(404).send()
+const jwt =  require('jsonwebtoken')
+router.post('/login', async (req, res) => {
+User.find({ email: req.body.email })
+    .then(user => {
+        // the user wont checks in the databse it gives every time as user already exits by default it is null
+        if (user.length < 1) {
+            return res.status(200).json({
+                message: "Email is wrong"
+            })
+        } else {
+            bcrypt.compare(req.body.password, user[0].password, (err, result) => {
+                if (err) {
+                    return res.status(500).json({
+                        message: "Password is not matched"
+                    })
+                }
+                if(result) {
+       const token = jwt.sign({
+                        email:user[0].email,
+                    },
+                   'my_secret_key',
+                    {
+                expiresIn : "1h"
+                    }
+                 );
+                    return res.status(200).json({
+                        message: "Auth Successfull",
+                        token: token
+                    })
+                }
+                res.status(500).json({
+                    message: "Auth failed"
+                })
+            })
         }
+    })
 
-        res.send(user)
-    } catch (e) {
-        res.status(500).send()
-    }
 })
 
-router.patch('/users/:id', async (req, res) => {
-    const updates = Object.keys(req.body)
-    const allowedUpdates = ['name', 'email', 'password', 'age']
-    const isValidOperation = updates.every((update) => allowedUpdates.includes(update))
+router.delete("/:userId", (req, res, next) => {
+    User.remove({ _id: req.params.userId })
 
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Invalid updates!' })
-    }
-
-    try {
-        const user = await User.findById(req.params.id)
-
-         updates.forEach((update) => user[update] = req.body[update])
-         await user.save()
-
-        if (!user) {
-            return res.status(404).send()
-        }
-
-        res.send(user)
-    } catch (e) {
-        res.status(400).send(e)
-    }
-})
-
-router.delete('/users/:id', async (req, res) => {
-    try {
-        const user = await User.findByIdAndDelete(req.params.id)
-
-        if (!user) {
-            return res.status(404).send()
-        }
-
-        res.send(user)
-    } catch (e) {
-        res.status(500).send()
-    }
-})
-
+        .then(result => {
+            res.status(200).json({
+                message: "User deleted"
+            });
+        })
+        .catch(err => {
+            console.log(err);
+            res.status(500).json({
+                error: err
+            });
+        });
+});
 module.exports = router
